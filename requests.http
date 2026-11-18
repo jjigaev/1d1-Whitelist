@@ -1,11 +1,11 @@
 @base_url = http://127.0.0.1:8000
 @company_bin = 000000000021
-@company_id = 1
-@manager_id = 1
-@meeting_id = 1
-@starts_at = 2026-11-20T05:00:00Z
-@rescheduled_starts_at = 2026-11-20T06:00:00Z
-@schedule_date = 2026-11-20
+@company_id = REPLACE_WITH_COMPANY_ID
+@manager_id = REPLACE_WITH_MANAGER_ID
+@meeting_id = REPLACE_WITH_MEETING_ID
+@starts_at = REPLACE_WITH_FUTURE_UTC_START
+@rescheduled_starts_at = REPLACE_WITH_FUTURE_UTC_START
+@schedule_date = REPLACE_WITH_ALMATY_DATE
 
 ### 1. Создать организацию
 # Для повторного запуска выберите другой свободный БИН из 12 цифр.
@@ -20,9 +20,10 @@ Content-Type: application/json
 }
 
 ### 2. Назначить встречу
-# Укажите manager_id из списка менеджеров после seed_demo. Команда есть в README.
-# Выберите свободные слоты в будущем с понедельника по пятницу с 09:00 до 17:00
-# по Алматы. Укажите начала слотов в UTC с Z, а schedule_date по календарю Алматы.
+# Возьмите manager_id из Django shell по команде в README.
+# Скопируйте три значения даты и времени из команды в README. Она выберет
+# будущий будний день по Алматы и переведёт начало слотов 10:00 и 11:00 в UTC.
+# Если слоты заняты, выберите два свободных с 09:00 до 17:00 по Алматы в один день.
 # Скопируйте id из ответа в meeting_id вверху файла.
 POST {{base_url}}/meetings
 Content-Type: application/json
