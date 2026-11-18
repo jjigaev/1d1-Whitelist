@@ -1,6 +1,4 @@
 # 1d1-Whitelist
-
-Тестовое задание Б — Software Developer для WhiteList & Co Ltd.
 Внутренняя CRM для учёта организаций, звонков и встреч на Django и Django REST Framework.
 
 API поддерживает создание и список организаций, регистрацию звонков, назначение,
