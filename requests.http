@@ -1,0 +1,17 @@
+@base_url = http://127.0.0.1:8000
+@company_id = 1
+@manager_id = 1
+@starts_at = 2026-11-20T05:00:00Z
+
+### Назначить встречу
+# Укажите ID существующей организации и менеджера. seed_demo создаёт только менеджеров.
+# API организаций пока отсутствует. Создайте организацию через manage.py shell.
+# Подставьте будущий рабочий слот по времени Алматы, указав его в UTC.
+POST {{base_url}}/meetings
+Content-Type: application/json
+
+{
+  "company_id": {{company_id}},
+  "manager_id": {{manager_id}},
+  "starts_at": "{{starts_at}}"
+}
