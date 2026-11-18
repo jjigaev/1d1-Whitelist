@@ -1,5 +1,6 @@
 from datetime import UTC, date, datetime, time, timedelta
 
+from django.db import OperationalError
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.exceptions import NotFound, ValidationError
@@ -8,7 +9,15 @@ from rest_framework.response import Response
 
 from .models import Company, Manager, Meeting
 from .serializers import CallSerializer, CompanySerializer, MeetingSerializer, MeetingUpdateSerializer
-from .services import ALMATY, create_company, create_meeting, register_call, update_meeting
+from .services import (
+    ALMATY,
+    DatabaseBusy,
+    create_company,
+    create_meeting,
+    is_sqlite_lock_error,
+    register_call,
+    update_meeting,
+)
 
 
 @api_view(["POST"])
@@ -31,8 +40,13 @@ def patch_meeting(request, meeting_id):
 def companies(request):
     if request.method == "POST":
         serializer = CompanySerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        company = create_company(**serializer.validated_data)
+        try:
+            serializer.is_valid(raise_exception=True)
+            company = create_company(**serializer.validated_data)
+        except OperationalError as exc:
+            if is_sqlite_lock_error(exc):
+                raise DatabaseBusy() from exc
+            raise
         return Response(CompanySerializer(company).data, status=status.HTTP_201_CREATED)
 
     queryset = Company.objects.order_by("id")

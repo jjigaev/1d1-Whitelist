@@ -12,6 +12,8 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 import os
 from pathlib import Path
+from tempfile import gettempdir
+from uuid import uuid4
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -85,6 +87,11 @@ DATABASES = {
         'OPTIONS': {
             'transaction_mode': 'IMMEDIATE',
             'timeout': 5,
+        },
+        # The test runner creates and removes this file. Worker threads use
+        # separate connections to it and never connect to db.sqlite3.
+        'TEST': {
+            'NAME': Path(gettempdir()) / f'whitelist-test-{uuid4().hex}.sqlite3',
         },
     }
 }

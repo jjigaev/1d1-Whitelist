@@ -169,28 +169,33 @@ def create_company(*, name, bin, phone):
 
 
 def register_call(*, company_id, result, meeting_id=None):
-    with transaction.atomic():
-        company = Company.objects.filter(pk=company_id).first()
-        if company is None:
-            raise NotFound("Company not found.")
+    try:
+        with transaction.atomic():
+            company = Company.objects.filter(pk=company_id).first()
+            if company is None:
+                raise NotFound("Company not found.")
 
-        if result == Call.Result.MEETING_SET:
-            if meeting_id is None:
-                raise ValidationError({"meeting_id": ["This field is required for meeting_set."]})
-            active_meeting = Meeting.objects.filter(
-                pk=meeting_id,
-                company_id=company_id,
-                status=Meeting.Status.SCHEDULED,
-                ends_at__gt=timezone.now(),
-            )
-            if not active_meeting.exists():
-                raise ValidationError({
-                    "meeting_id": ["Choose an active meeting belonging to this company."],
-                })
-        elif meeting_id is not None:
-            raise ValidationError({"meeting_id": ["Provide a meeting only for meeting_set."]})
+            if result == Call.Result.MEETING_SET:
+                if meeting_id is None:
+                    raise ValidationError({"meeting_id": ["This field is required for meeting_set."]})
+                active_meeting = Meeting.objects.filter(
+                    pk=meeting_id,
+                    company_id=company_id,
+                    status=Meeting.Status.SCHEDULED,
+                    ends_at__gt=timezone.now(),
+                )
+                if not active_meeting.exists():
+                    raise ValidationError({
+                        "meeting_id": ["Choose an active meeting belonging to this company."],
+                    })
+            elif meeting_id is not None:
+                raise ValidationError({"meeting_id": ["Provide a meeting only for meeting_set."]})
 
-        call = Call.objects.create(company=company, result=result, meeting_id=meeting_id)
-        company.status = result
-        company.save(update_fields=["status"])
-        return call
+            call = Call.objects.create(company=company, result=result, meeting_id=meeting_id)
+            company.status = result
+            company.save(update_fields=["status"])
+            return call
+    except OperationalError as exc:
+        if is_sqlite_lock_error(exc):
+            raise DatabaseBusy() from exc
+        raise
