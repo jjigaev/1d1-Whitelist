@@ -2,6 +2,8 @@ from datetime import UTC, datetime
 
 from rest_framework import serializers
 
+from .models import Meeting
+
 
 class UTCDateTimeField(serializers.DateTimeField):
     def to_internal_value(self, value):
@@ -28,3 +30,13 @@ class MeetingSerializer(serializers.Serializer):
     original_starts_at = serializers.DateTimeField(read_only=True, default_timezone=UTC)
     status = serializers.CharField(read_only=True)
     created_at = serializers.DateTimeField(read_only=True, default_timezone=UTC)
+
+
+class MeetingUpdateSerializer(serializers.Serializer):
+    starts_at = UTCDateTimeField(required=False, default_timezone=UTC)
+    status = serializers.ChoiceField(choices=[Meeting.Status.CANCELLED], required=False)
+
+    def validate(self, attrs):
+        if set(self.initial_data) not in ({"starts_at"}, {"status"}):
+            raise serializers.ValidationError("Send either starts_at or status=cancelled by itself.")
+        return attrs

@@ -21,6 +21,15 @@ class DatabaseBusy(APIException):
     default_detail = "The database is busy. Please retry shortly."
 
 
+def is_sqlite_lock_error(error):
+    cause = error.__cause__
+    if not isinstance(cause, sqlite3.OperationalError):
+        return False
+    # The low byte of an extended SQLite result code is the primary code.
+    primary_code = getattr(cause, "sqlite_errorcode", 0) & 0xFF
+    return primary_code in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED)
+
+
 def validate_meeting_time(starts_at, now):
     if starts_at <= now:
         raise ValidationError({"starts_at": ["The start must be in the future."]})
@@ -97,10 +106,47 @@ def create_meeting(*, company_id, manager_id, starts_at):
                 status=Meeting.Status.SCHEDULED,
             )
     except OperationalError as exc:
-        cause = exc.__cause__
-        if isinstance(cause, sqlite3.OperationalError):
-            # The low byte of an extended SQLite result code is the primary code.
-            primary_code = getattr(cause, "sqlite_errorcode", 0) & 0xFF
-            if primary_code in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED):
-                raise DatabaseBusy() from exc
+        if is_sqlite_lock_error(exc):
+            raise DatabaseBusy() from exc
+        raise
+
+
+def update_meeting(*, meeting_id, starts_at=None, status=None):
+    try:
+        with transaction.atomic():
+            meeting = Meeting.objects.filter(pk=meeting_id).first()
+            if meeting is None:
+                raise NotFound("Meeting not found.")
+
+            cancelling = status == Meeting.Status.CANCELLED
+            if meeting.status == Meeting.Status.CANCELLED:
+                if cancelling:
+                    return meeting
+                raise MeetingConflict("A cancelled meeting cannot be rescheduled.")
+
+            now = timezone.now()
+            if meeting.starts_at <= now:
+                raise MeetingConflict("A meeting that has already started cannot be changed.")
+
+            if cancelling:
+                meeting.status = Meeting.Status.CANCELLED
+                meeting.save(update_fields=["status"])
+            else:
+                ends_at = validate_meeting_time(starts_at, now)
+                check_meeting_availability(
+                    company_id=meeting.company_id,
+                    manager_id=meeting.manager_id,
+                    starts_at=starts_at,
+                    ends_at=ends_at,
+                    now=now,
+                    exclude_meeting_id=meeting.pk,
+                )
+                meeting.starts_at = starts_at
+                meeting.ends_at = ends_at
+                meeting.save(update_fields=["starts_at", "ends_at"])
+
+            return meeting
+    except OperationalError as exc:
+        if is_sqlite_lock_error(exc):
+            raise DatabaseBusy() from exc
         raise
