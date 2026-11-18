@@ -1,8 +1,9 @@
 from datetime import UTC, datetime
 
 from rest_framework import serializers
+from rest_framework.validators import UniqueValidator
 
-from .models import Meeting
+from .models import Call, Company, Meeting
 
 
 class UTCDateTimeField(serializers.DateTimeField):
@@ -40,3 +41,34 @@ class MeetingUpdateSerializer(serializers.Serializer):
         if set(self.initial_data) not in ({"starts_at"}, {"status"}):
             raise serializers.ValidationError("Send either starts_at or status=cancelled by itself.")
         return attrs
+
+
+class BinField(serializers.CharField):
+    def to_internal_value(self, value):
+        if not isinstance(value, str):
+            raise serializers.ValidationError("BIN must be a string.")
+        return super().to_internal_value(value)
+
+
+class CompanySerializer(serializers.ModelSerializer):
+    bin = BinField(
+        trim_whitespace=False,
+        validators=[
+            *Company._meta.get_field("bin").validators,
+            UniqueValidator(queryset=Company.objects.all()),
+        ],
+    )
+    created_at = serializers.DateTimeField(read_only=True, default_timezone=UTC)
+
+    class Meta:
+        model = Company
+        fields = ("id", "name", "bin", "phone", "status", "created_at")
+        read_only_fields = ("id", "status")
+
+
+class CallSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
+    company_id = serializers.IntegerField(min_value=1)
+    result = serializers.ChoiceField(choices=Call.Result.choices)
+    meeting_id = serializers.IntegerField(min_value=1, required=False, allow_null=True)
+    created_at = serializers.DateTimeField(read_only=True, default_timezone=UTC)

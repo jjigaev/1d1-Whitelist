@@ -1,12 +1,29 @@
 @base_url = http://127.0.0.1:8000
+@company_bin = 000000000021
 @company_id = 1
 @manager_id = 1
+@meeting_id = 1
 @starts_at = 2026-11-20T05:00:00Z
+@rescheduled_starts_at = 2026-11-20T06:00:00Z
+@schedule_date = 2026-11-20
 
-### Назначить встречу
-# Укажите ID существующей организации и менеджера. seed_demo создаёт только менеджеров.
-# API организаций пока отсутствует. Создайте организацию через manage.py shell.
-# Подставьте будущий рабочий слот по времени Алматы, указав его в UTC.
+### 1. Создать организацию
+# Для повторного запуска выберите другой свободный БИН из 12 цифр.
+# Скопируйте id из ответа в company_id вверху файла.
+POST {{base_url}}/companies
+Content-Type: application/json
+
+{
+  "name": "Демо организация",
+  "bin": "{{company_bin}}",
+  "phone": "+7 700 000 00 21"
+}
+
+### 2. Назначить встречу
+# Укажите manager_id из списка менеджеров после seed_demo. Команда есть в README.
+# Выберите свободные слоты в будущем с понедельника по пятницу с 09:00 до 17:00
+# по Алматы. Укажите начала слотов в UTC с Z, а schedule_date по календарю Алматы.
+# Скопируйте id из ответа в meeting_id вверху файла.
 POST {{base_url}}/meetings
 Content-Type: application/json
 
@@ -15,3 +32,38 @@ Content-Type: application/json
   "manager_id": {{manager_id}},
   "starts_at": "{{starts_at}}"
 }
+
+### 3. Зарегистрировать звонок по активной встрече
+POST {{base_url}}/calls
+Content-Type: application/json
+
+{
+  "company_id": {{company_id}},
+  "result": "meeting_set",
+  "meeting_id": {{meeting_id}}
+}
+
+### 4. Перенести встречу на другой свободный слот того же дня
+PATCH {{base_url}}/meetings/{{meeting_id}}
+Content-Type: application/json
+
+{
+  "starts_at": "{{rescheduled_starts_at}}"
+}
+
+### 5. Посмотреть обновлённое расписание
+GET {{base_url}}/managers/{{manager_id}}/schedule?date={{schedule_date}}
+
+### 6. Отменить встречу
+PATCH {{base_url}}/meetings/{{meeting_id}}
+Content-Type: application/json
+
+{
+  "status": "cancelled"
+}
+
+### 7. Убедиться, что отменённая встреча исчезла из расписания
+GET {{base_url}}/managers/{{manager_id}}/schedule?date={{schedule_date}}
+
+### 8. Посмотреть организации со статусом последнего звонка meeting_set
+GET {{base_url}}/companies?status=meeting_set&page=1

@@ -2,12 +2,12 @@ import sqlite3
 from datetime import time, timedelta
 from zoneinfo import ZoneInfo
 
-from django.db import OperationalError, transaction
+from django.db import IntegrityError, OperationalError, transaction
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.exceptions import APIException, NotFound, ValidationError
 
-from .models import Company, Manager, Meeting
+from .models import Call, Company, Manager, Meeting
 
 ALMATY = ZoneInfo("Asia/Almaty")
 
@@ -150,3 +150,47 @@ def update_meeting(*, meeting_id, starts_at=None, status=None):
         if is_sqlite_lock_error(exc):
             raise DatabaseBusy() from exc
         raise
+
+
+def create_company(*, name, bin, phone):
+    try:
+        with transaction.atomic():
+            return Company.objects.create(name=name, bin=bin, phone=phone)
+    except IntegrityError as exc:
+        # Another request can insert the same BIN after serializer validation.
+        cause = exc.__cause__
+        if (
+            isinstance(cause, sqlite3.IntegrityError)
+            and getattr(cause, "sqlite_errorcode", None) == sqlite3.SQLITE_CONSTRAINT_UNIQUE
+            and str(cause) == f"UNIQUE constraint failed: {Company._meta.db_table}.bin"
+        ):
+            raise ValidationError({"bin": ["A company with this BIN already exists."]}) from exc
+        raise
+
+
+def register_call(*, company_id, result, meeting_id=None):
+    with transaction.atomic():
+        company = Company.objects.filter(pk=company_id).first()
+        if company is None:
+            raise NotFound("Company not found.")
+
+        if result == Call.Result.MEETING_SET:
+            if meeting_id is None:
+                raise ValidationError({"meeting_id": ["This field is required for meeting_set."]})
+            active_meeting = Meeting.objects.filter(
+                pk=meeting_id,
+                company_id=company_id,
+                status=Meeting.Status.SCHEDULED,
+                ends_at__gt=timezone.now(),
+            )
+            if not active_meeting.exists():
+                raise ValidationError({
+                    "meeting_id": ["Choose an active meeting belonging to this company."],
+                })
+        elif meeting_id is not None:
+            raise ValidationError({"meeting_id": ["Provide a meeting only for meeting_set."]})
+
+        call = Call.objects.create(company=company, result=result, meeting_id=meeting_id)
+        company.status = result
+        company.save(update_fields=["status"])
+        return call
