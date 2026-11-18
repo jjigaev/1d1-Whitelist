@@ -1,0 +1,25 @@
+# Virtual environments and an optional local Python runtime.
+.venv/
+venv/
+env/
+.python/
+
+# Python bytecode.
+__pycache__/
+*.py[cod]
+
+# Local SQLite databases, journals, and lock files.
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.db
+*.db-*
+
+# Local secrets and settings.
+.env
+.env.*
+!.env.example
+local_settings.py
+*.pem
+*.key
